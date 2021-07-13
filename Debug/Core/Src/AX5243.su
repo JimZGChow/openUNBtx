@@ -1,0 +1,11 @@
+AX5243.c:19:6:AX5243_u_delay	0	static
+AX5243.c:26:10:DbmToa1	64	static
+AX5243.c:38:6:SPI_TR_24	36	static
+AX5243.c:66:6:SPI_TR_16	36	static
+AX5243.c:96:6:AX5243_init	72	static
+AX5243.c:151:9:AX5243_transmit	24	static
+AX5243.c:313:9:AX5243_set_fr	8	static
+AX5243.c:337:9:AX5243_set_pw	64	static
+AX5243.c:361:9:AX5243_set_fl	8	static
+AX5243.c:378:9:AX5243_set_pd	8	static
+AX5243.c:400:6:AX5243_rs	8	static
