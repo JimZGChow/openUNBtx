@@ -145,4 +145,3 @@ PF1-OSC_OUT.PinState=GPIO_PIN_SET
 PA7.Signal=GPIO_Input
 PA1.GPIO_ModeDefaultOutputPP=GPIO_MODE_OUTPUT_OD
 PA6.Locked=true
-isbadioc=false

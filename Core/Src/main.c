@@ -27,6 +27,7 @@
 #include "AX5243.h"
 #include "SW_interfaces.h"
 #include "encrypt/OpenUNBEncrypterLL.h"
+#include "encrypt/OpenUNBConsts.h"
 #include "polar/OpenUNBEncoderLL.h"
 /* USER CODE END Includes */
 
@@ -75,9 +76,9 @@ static void MX_TIM3_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-void preapare_msg_16bit(struct encryptData *initData, uint8_t *in, uint8_t *out);
-void preapare_msg_48bit(struct encryptData *initData, uint8_t *in, uint8_t *out);
-void preapare_msg_activate(struct encryptData *initData, uint8_t *out);
+int preapare_msg_16bit(struct encrypt_data_t *initData, uint8_t *in, uint8_t *out);
+int preapare_msg_48bit(struct encrypt_data_t *initData, uint8_t *in, uint8_t *out);
+void preapare_msg_activate(struct encrypt_data_t *initData, uint8_t *out);
 
 void USART_TX(uint8_t *dt, uint16_t sz);
 void USART_TX_Str(char *string);
@@ -129,13 +130,26 @@ int main(void) {
 	//(TIM1->CNT) = (0);
 	LL_SYSTICK_EnableIT();
 	// OpenUNB device
-	uint8_t DevID[] = { 0x21, 0x01, 0x01, 0x15, 0x66 }; // Device ID
 
-	struct encryptData initData = { .DevID = DevID, .DevID_len = sizeof(DevID),
-			.K0 = { 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xA, 0xB,
-					0xC, 0xD, 0xE, 0xF }, .Na = 1, .Ne = 0 };
+
+	uint8_t K0[] = { 0x1, 0x2, 0x3, 0x4, 0x5, 0x6 , 0x7 , 0x8 , 0x9 , 0xA , 0xB , 0xC , 0xD , 0xE , 0xF , 0x0};
+
+	uint8_t DevID[] = {0x21, 0x01, 0x01, 0x15, 0x66};
+	struct encrypt_data_t initData;
+	initData.DevID = DevID;
+	initData.DevID_len = sizeof(DevID);
+	initData.Na = 1;
+	initData.Ne = 0;
+
+	uint8_t payload2[] = {0x11, 0x82};
+	uint8_t payload6[] = {0x11, 0xDA, 0x01, 0xFF, 0x84, 0x55};
+
+	memcpy(initData.K0, K0, sizeof(K0));
+
 
 	initEncrypter(&initData);
+
+	//encodeActivateMsg(&initData, act_msg, LL_GetTi);
 
 	for (int i = 0; i < 10; i++) {                               //Indication
 		LED_PORT->BSRR = (1 << LED_PIN);
@@ -155,7 +169,6 @@ int main(void) {
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
 	while (1) {
-
 		RX_STR_Size = USART_RX_Str();
 
 		if ((u2_rx_buff[0] == 'A') && (u2_rx_buff[1] == 'T')) {
@@ -269,8 +282,12 @@ int main(void) {
 					tx_buff[0] = tx_buff[1];
 					tx_buff[1] = tmp;
 
-					preapare_msg_16bit(&initData, tx_buff, data_after_preapare);
-					error_flag = (AX5243_transmit(data_after_preapare, 20));
+					error_flag = preapare_msg_16bit(&initData, tx_buff, data_after_preapare);
+					if (error_flag != 0) {
+						error_flag = 1;
+					} else {
+						error_flag = (AX5243_transmit(data_after_preapare, 20));
+					}
 				} else if (RX_Data_Size == 6 && error_flag == 0) {
 
 
@@ -281,8 +298,12 @@ int main(void) {
 					}
 
 
-					preapare_msg_48bit(&initData, tx_buff, data_after_preapare);
-					error_flag = (AX5243_transmit(data_after_preapare, 36));
+					error_flag = preapare_msg_48bit(&initData, tx_buff, data_after_preapare);
+					if (error_flag != 0) {
+						error_flag = 1;
+					} else {
+						error_flag = (AX5243_transmit(data_after_preapare, 36));
+					}
 				}
 			} else {
 				error_flag = 1;
@@ -291,8 +312,12 @@ int main(void) {
 
 		else if ((u2_rx_buff[0] == 'A') && (u2_rx_buff[1] == 'M')) {    // AM
 			if (RX_STR_Size == 2) {
-				preapare_msg_activate(&initData, data_after_preapare);
-				error_flag = (AX5243_transmit(data_after_preapare, 36));
+				for (int i=0; i < MAX_PKT_TX_NUM && error_flag == 0; i++) {
+					preapare_msg_activate(&initData, data_after_preapare);
+					error_flag = (AX5243_transmit(data_after_preapare, 36));
+
+					LL_mDelay(500);
+				}
 			} else {
 				error_flag = 1;
 			}
@@ -312,8 +337,12 @@ int main(void) {
 					I2C_Stop();
 					tx_buff[0] = Reg_addr;
 					tx_buff[1] = Reg_data;
-					preapare_msg_16bit(&initData, tx_buff, data_after_preapare);
-					error_flag = (AX5243_transmit(data_after_preapare, 20));
+					error_flag = preapare_msg_16bit(&initData, tx_buff, data_after_preapare);
+					if (error_flag != 0) {
+						error_flag = 1;
+					} else {
+						error_flag = (AX5243_transmit(data_after_preapare, 20));
+					}
 				}
 			} else {
 				error_flag = 1;
@@ -327,8 +356,12 @@ int main(void) {
 					Reg_data = SPI2_Read_Byte(Reg_addr);
 					tx_buff[0] = Reg_addr;
 					tx_buff[1] = Reg_data;
-					preapare_msg_16bit(&initData, tx_buff, data_after_preapare);
-					error_flag = (AX5243_transmit(data_after_preapare, 20));
+					error_flag = preapare_msg_16bit(&initData, tx_buff, data_after_preapare);
+					if (error_flag != 0) {
+						error_flag = 1;
+					} else {
+						error_flag = (AX5243_transmit(data_after_preapare, 20));
+					}
 				}
 			} else {
 				error_flag = 1;
@@ -684,29 +717,39 @@ static void MX_GPIO_Init(void) {
 
 /* USER CODE BEGIN 4 */
 
-void preapare_msg_16bit(struct encryptData *initData, uint8_t *in, uint8_t *out) {
+int preapare_msg_16bit(struct encrypt_data_t *initData, uint8_t *in, uint8_t *out) {
 	uint8_t buff1[256];
 
-	encode16Bit(initData, in, buff1, msTicks);
+	int ret = encodeData(initData, in, buff1, 2, msTicks);
+
+	if (ret < 0)
+		return ret;
 
 	encode64(buff1, out + 4);
 	memcpy(out, &PREAMB, sizeof(PREAMB));
 
 	to_diff(out, out, 20);
+
+	return 0;
 }
 
-void preapare_msg_48bit(struct encryptData *initData, uint8_t *in, uint8_t *out) {
+int preapare_msg_48bit(struct encrypt_data_t *initData, uint8_t *in, uint8_t *out) {
 	uint8_t buff1[256];
 
-	encode48Bit(initData, in, buff1, msTicks);
+	int ret = encodeData(initData, in, buff1, 6, msTicks);
+
+	if (ret < 0)
+		return ret;
 
 	encode96(buff1, out + 4);
 	memcpy(out, &PREAMB, sizeof(PREAMB));
 
 	to_diff(out, out, 36);
+
+	return 0;
 }
 
-void preapare_msg_activate(struct encryptData *initData, uint8_t *out) {
+void preapare_msg_activate(struct encrypt_data_t *initData, uint8_t *out) {
 	uint8_t buff1[256];
 
 	encodeActivateMsg(initData, buff1, msTicks);

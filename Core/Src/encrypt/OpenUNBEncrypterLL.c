@@ -1,376 +1,337 @@
 #include "encrypt/OpenUNBEncrypterLL.h"
 
+#if defined(AES128) | defined(AES256)
+#include "encrypt/aes.h"
+#else
+#include <libakrypt.h>
+#endif
 
-void initEncrypter(struct encryptData* enc_data) {
-	enc_data->Ka = getKa(enc_data->K0, enc_data->Na);
+#if defined(AES128) | defined(AES256)
+void aes128Enc(uint8_t* key, uint8_t* data, uint8_t* ret);
+//void aesCTR(uint8_t* key, uint8_t* iv, uint8_t* data, uint8_t* ret);
+void aesCTR(uint8_t* key, uint8_t* iv, uint8_t* data, size_t size, uint8_t* ret);
+void aesECB(uint8_t* key, uint8_t*  data, uint8_t* ret);
+void aesCMAC(uint8_t* key, uint8_t* data, size_t size, uint8_t* ret);
+#endif
+
+#if defined(KUZNECHIK) | defined(MAGMA)
+uint128_256_t kzchMgmCTR(uint128_256_t key, iv_t iv, uint128_256_t data);
+uint128_256_t kzchMgmCTR(uint128_256_t key, iv_t iv, uint8_t* data, size_t size);
+uint128_256_t kzchMgmECB(uint128_256_t key, uint128_256_t data);
+uint24a_t kzchMgmCMAC(uint128_256_t key, uint8_t* data, size_t size);
+#endif
+
+void encECB(uint8_t* key, uint8_t* data, uint8_t* ret);
+void encCTR(uint8_t* key, uint8_t* iv, uint8_t* data, size_t size, uint8_t* ret);
+uint32_t encCMAC(uint8_t* key, uint8_t* data, size_t size);
+
+void mem_swap(void* mem, size_t n) {
+    uint8_t tmp;
+    uint8_t* mem_ptr = (uint8_t*)mem;
+    for (int i=0; i<n/2; i++) {
+        tmp = mem_ptr[i];
+        mem_ptr[i] = mem_ptr[n - 1 - i];
+        mem_ptr[n - 1 - i] = tmp;
+    }
 }
 
-void encodeActivateMsg(struct encryptData* enc_data, uint8_t* out, time_t time) {
-	enc_data->initTime = MS2S(time); // to sec
-	enc_data->Ne.ud = 0;
-	enc_data->Ke = getKe(enc_data->Ka, enc_data->Ne);
-	enc_data->Km = getKm(enc_data->Ka, enc_data->Ne);
+void memcpy_endian(void* dest, const void* src, size_t n) {
+    uint16_t big_endian_tester = 1;
+    uint8_t IS_LITTLE_ENDIAN = ((uint8_t*)&big_endian_tester)[0];
 
-	enc_data->DevAddr = getDevAddr(enc_data->Ka, enc_data->Ne);
-
-	uint24a_t devAddr24 = {0};
-	uint16_t payload = enc_data->Na;
-	uint24a_t MIC = {0};
-
-	devAddr24.ud = crc24(enc_data->DevID, enc_data->DevID_len);
-	MIC = getMIC16(enc_data->Km, devAddr24, payload, 0);
-
-	memcpy(out, devAddr24.data, sizeof(devAddr24.data));
-	memcpy(out + sizeof (devAddr24.data), &payload, sizeof (payload));
-	memcpy(out + sizeof (devAddr24.data) + sizeof (payload), MIC.data, sizeof (MIC.data));
+    if (!IS_LITTLE_ENDIAN) {
+        for (int i=0; i < n; i++) {
+            ((char*)dest)[n - 1 - i] = ((char*)src)[i];
+        }
+        //memcpy(dest, src, n);
+    } else {
+        memcpy(dest, src, n);
+    }
 }
 
-void encode16Bit(struct encryptData* enc_data, uint8_t* in, uint8_t* out, time_t time) {
-	uint24a_t newNe = {0};
-	uint24a_t MIC = {0};
+int init_encrypter() {
+#if defined(KUZNECHIK) | defined(MAGMA)
+    if( !ak_libakrypt_create( ak_function_log_stderr ))
+        return ak_libakrypt_destroy();
+    ak_libakrypt_set_openssl_compability( ak_false );
+#endif
 
-	newNe.ud = (MS2S(time) - enc_data->initTime) / EPOCH_DURATION_TIME;
-
-	if (newNe.ud != enc_data->Ne.ud) {
-		enc_data->Ne = newNe;
-
-		enc_data->Ke = getKe(enc_data->Ka, enc_data->Ne);
-		enc_data->Km = getKm(enc_data->Ka, enc_data->Ne);
-		enc_data->DevAddr = getDevAddr(enc_data->Ka, enc_data->Ne);
-		enc_data->Nn = 0;
-	} else {
-		enc_data->Nn = S2M((MS2S(time) - enc_data->initTime) % EPOCH_DURATION_TIME);
-	}
-
-
-	int16_t payload = cryptoMacPayload16(*(uint16_t*)in, enc_data->Ke, enc_data->Nn);
-	MIC = getMIC16(enc_data->Km, enc_data->DevAddr, payload, enc_data->Nn);
-
-	memcpy(out, enc_data->DevAddr.data, sizeof (enc_data->DevAddr.data));
-	memcpy(out + sizeof (enc_data->DevAddr.data), &payload, sizeof (payload));
-	memcpy(out + sizeof (enc_data->DevAddr.data) + sizeof (payload), MIC.data, sizeof (MIC.data));
+    return 0;
 }
 
-void encode48Bit(struct encryptData* enc_data, uint8_t* in, uint8_t* out, time_t time) {
-	uint24a_t newNe = {0};
-	uint24a_t MIC = {0};
+void getKa(uint8_t* K0, uint16_t Na, uint8_t* Ka) {
+    memset(Ka, 0, KEYSIZE_BYTE);
 
-	newNe.ud = (MS2S(time) - enc_data->initTime) / EPOCH_DURATION_TIME;
-
-	if (newNe.ud != enc_data->Ne.ud) {
-		enc_data->Ne = newNe;
-
-		enc_data->Ke = getKe(enc_data->Ka, enc_data->Ne);
-		enc_data->Km = getKm(enc_data->Ka, enc_data->Ne);
-		enc_data->DevAddr = getDevAddr(enc_data->Ka, enc_data->Ne);
-		enc_data->Nn = 0;
-	} else {
-		enc_data->Nn = S2M((MS2S(time) - enc_data->initTime) % EPOCH_DURATION_TIME);
-	}
-
-	uint48a_t payload = cryptoMacPayload48(*(uint48a_t*)in, enc_data->Ke, enc_data->Nn);
-	MIC = getMIC48(enc_data->Km, enc_data->DevAddr, payload, enc_data->Nn);
-
-	memcpy(out, enc_data->DevAddr.data, sizeof (enc_data->DevAddr.data));
-	memcpy(out + sizeof (enc_data->DevAddr.data), payload.data, sizeof (payload.data));
-	memcpy(out + sizeof (enc_data->DevAddr.data) + sizeof (payload.data), MIC.data, sizeof (MIC.data));
-}
-
-
-uint128_256_t aes128Enc(uint128_256_t key, uint128_256_t data);
-uint128_256_t aesCTR(uint128_256_t key, iv_t iv, uint128_256_t data);
-uint128_256_t aesCTR_a(uint128_256_t key, iv_t iv, uint8_t* data, size_t size);
-uint128_256_t aesECB(uint128_256_t key, uint128_256_t data);
-uint24a_t aesCMAC(uint128_256_t key, uint8_t* data, size_t size);
-
-uint128_256_t encECB(uint128_256_t key, uint128_256_t data);
-uint128_256_t encCTR(uint128_256_t key, iv_t iv, uint128_256_t data);
-uint24a_t encCMAC(uint128_256_t key, uint8_t* data, size_t size);
-
-
-uint128_256_t getKa(uint128_256_t K0, uint16_t Na) {
-    uint128_256_t ret = { 0 };
-    iv_t iv = {0};
+    uint8_t iv[IVSIZE] = {0};
 
     //Na || 00..00
-    memcpy((char*)&iv + sizeof(iv.data) - sizeof(Na), &Na, sizeof(Na));
-    uint128_256_t t = {0};
+    memcpy_endian(iv, &Na, sizeof(Na));
 
-    ret = encCTR(K0, iv, t);
+    uint8_t t[KEYSIZE_BYTE] = {0};
 
-    return ret;
+    encCTR(K0, iv, t, KEYSIZE_BYTE, Ka);
 }
 
 
-uint24a_t getDevAddr(uint128_256_t Ka, uint24a_t Ne) {
-    uint24a_t ret;
-    uint128_256_t tmp;
-    uint128_256_t tmpRet = { 0 };
+uint32_t getDevAddr(uint8_t* Ka, uint32_t Ne) {
+    uint32_t ret = 0;
+
+    uint8_t tmp[KEYSIZE_BYTE] = {0};
+    uint8_t tmp_ret[KEYSIZE_BYTE] = {0};
 
     // 0x01 || Ne || 00..00
-    memset(tmp.data, 0, sizeof(tmp.data));
-    tmp.data[sizeof(tmp.data) - 1] = 0x01;
-    memcpy(tmp.data + sizeof(tmp.data) - sizeof(Ne) - 1, &Ne, sizeof(Ne));
+    memset(tmp, 0, KEYSIZE_BYTE);
+    tmp[0] = 0x01;
+    memcpy_endian(tmp + 1, &Ne, sizeof(Ne));
 
-    tmpRet = encECB(Ka, tmp);
+    encECB(Ka, tmp, tmp_ret);
 
-    memcpy(ret.data, tmpRet.data + sizeof(tmpRet.data) - sizeof(ret.data), sizeof(ret.data));
+    memcpy_endian(&ret, tmp_ret, 4);
+
+    ret = ret & 0xFFFFFF;
 
     return ret;
 }
 
-uint128_256_t getKm(uint128_256_t Ka, uint24a_t Ne) {
-    uint128_256_t ret = { 0 };
-
+void getKm(uint8_t* Ka, uint32_t Ne, uint8_t* ret) {
     // 0x02 || Ne || 00..00
-    iv_t iv = {0};
-    iv.data[sizeof(iv) - 1] = 0x02;
-    memcpy(iv.data + sizeof(iv.data) - sizeof(Ne) - 1, &Ne, sizeof(Ne));
+    uint8_t iv[IVSIZE] = {0};
+    iv[0] = 0x02;
+    memcpy_endian(iv + 1, &Ne, sizeof(Ne));
 
-    uint128_256_t t = {0};
-    ret = encCTR(Ka, iv, t);
-
-    return ret;
+    uint8_t t[KEYSIZE_BYTE] = {0};
+    encCTR(Ka, iv, t, KEYSIZE_BYTE, ret);
 }
 
-uint128_256_t getKe(uint128_256_t Ka, uint24a_t Ne) {
-    uint128_256_t ret = { 0 };
 
-    // 0x02 || Ne || 00..00
-    iv_t iv = {0};
-    iv.data[sizeof(iv) - 1] = 0x03;
-    memcpy(iv.data + sizeof(iv.data) - sizeof(Ne) - 1, &Ne, sizeof(Ne));
 
-    uint128_256_t t = {0};
-    ret = encCTR(Ka, iv, t);
+void getKe(uint8_t* Ka, uint32_t Ne, uint8_t* Ke) {
+    // 0x03 || Ne || 00..00
+    uint8_t iv[IVSIZE] = {0};
+    iv[0] = 0x03;
+    memcpy_endian(iv + 1, &Ne, sizeof(Ne));
 
-    return ret;
+    uint8_t t[KEYSIZE_BYTE] = {0};
+    encCTR(Ka, iv, t, KEYSIZE_BYTE, Ke);
 }
 
-uint16_t cryptoMacPayload16(uint16_t macPayload, uint128_256_t Ke, uint16_t Nn) {
-    uint16_t ret;
-    iv_t iv = {0};
-    uint128_256_t tmpRet = { 0 };
+
+int cryptoMacPayload(uint8_t* macPayloadIn, uint8_t* macPayloadOut, uint8_t size, uint8_t* Ke, uint16_t Nn) {
+    if (size != 2 && size != 6)
+        return -1;
+
+    uint8_t iv[IVSIZE] = {0};
+    uint8_t tmpRet[KEYSIZE_BYTE] = {0};
 
     //Nn || 00..00
-    memcpy((char*)&iv + sizeof(iv.data) - sizeof(Nn), &Nn, sizeof(Nn));
+    memcpy_endian(iv, &Nn, sizeof(Nn));
 
-    uint128_256_t t = {0};
-    memcpy(t.data, &macPayload, sizeof(macPayload));
+    uint8_t t[KEYSIZE_BYTE] = {0};
+    memcpy(t, macPayloadIn, size);
 
-    tmpRet = encCTR(Ke, iv, t);
+    encCTR(Ke, iv, t, KEYSIZE_BYTE, tmpRet);
 
-    // MSB
-    ret = (tmpRet.data[1] << 8) | (tmpRet.data[0]);
+    memcpy(macPayloadOut, tmpRet, size);
 
-    return ret;
+    return 0;
 }
 
-uint48a_t cryptoMacPayload48(uint48a_t macPayload, uint128_256_t Ke, uint16_t Nn) {
-    uint48a_t ret;
-    iv_t iv = {0};
-    uint128_256_t tmpRet = { 0 };
 
-    // Ne || 00..00
-    memcpy((char*)&iv + sizeof(iv.data) - sizeof(Nn), &Nn, sizeof(Nn));
+int getMIC(uint8_t* Km, uint32_t DevAddr, uint8_t* dataIn, uint8_t* dataOut, uint8_t size, uint16_t Nn) {
+    if (size != 2 && size != 6)
+        return -1;
 
-    uint128_256_t t = {0};
-    memcpy(t.data, macPayload.data, sizeof(macPayload.data));
-    tmpRet = encCTR(Ke, iv, t);
-
-    memcpy(ret.data, tmpRet.data, sizeof(ret.data));
-
-    return ret;
-}
-
-uint24a_t getMIC16(uint128_256_t Km, uint24a_t DevAddr, uint16_t cryptoMacPayload, uint16_t Nn) {
-    uint24a_t ret = { 0 };
-
-    uint128a_t P;
-
+#if defined(AES128) || defined(AES256) || defined(KUZNECHIK)
+    uint8_t P[16] = { 0 };
+#else
+    uint8_t P[8] = { 0 };
+#endif
     // 00..00
-    memset(P.data, 0, sizeof(P.data));
+    memset(P, 0, sizeof(P));
     // DevAddr || 00..00
-    memcpy(P.data + sizeof(P.data) - sizeof(DevAddr.data), DevAddr.data, sizeof(DevAddr.data));
+    memcpy_endian(P, &DevAddr, 4);
     // DevAddr || cryptoMacPayload || 00..00
-    memcpy(P.data + sizeof(P.data) - sizeof(DevAddr.data) - sizeof(cryptoMacPayload), &cryptoMacPayload, sizeof(cryptoMacPayload));
+    memcpy(P + 3, dataIn, size);
     // DevAddr || cryptoMacPayload || Nn || 00..00
-    memcpy(P.data + sizeof(P.data) - sizeof(DevAddr.data) - sizeof(cryptoMacPayload) - sizeof(Nn), &Nn, sizeof(Nn));
+    memcpy_endian(P + 3 + size, &Nn, sizeof(Nn));
     // DevAddr || cryptoMacPayload || Nn || 00..00 || 0x10
-    P.data[0] = 0x10;
+    P[sizeof (P) - 1] = 0x10;
 
-    uint128_256_t R;
-    uint128_256_t K1;
-    uint128_256_t t = {0};
+#if defined(AES128) || defined(AES256)
+    uint8_t R[KEYSIZE_BYTE] = {0};
+    uint8_t K1[KEYSIZE_BYTE] = {0};
+    uint8_t t[KEYSIZE_BYTE] = {0};
 
-    R = aesECB(Km, t);
+    aesECB(Km, t, R);
 
-    uint8_t msb = (R.data[sizeof(R.data) - 1] >> 7) & 1;
+    uint8_t msb = (R[0] >> 7) & 1;
 
     // R << 1
-    for (int i = sizeof(R.data) - 1; i >= 0; i--) {
-        R.data[i] = R.data[i] << 1;
+    for (int i = sizeof(R) - 1; i >= 0; i--) {
+        R[i] = R[i] << 1;
         if (i != 0)
-            R.data[i] |= (R.data[i - 1] >> 7) & 1;
+            R[i] |= (R[i - 1] >> 7) & 1;
     }
 
     // if ( MSB1(R) = 1)
     if (msb) {
-        uint128_256_t B = {0};
-        B.data[0] = 0b10000111;
+        uint8_t B[KEYSIZE_BYTE] = {0};
+        B[0] = 0b10000111;
 
-        for (unsigned int i = 0; i < sizeof(K1.data); i++) {
-            K1.data[i] = R.data[i] ^ B.data[i];
+        for (unsigned int i = 0; i < sizeof(K1); i++) {
+            K1[i] = R[i] ^ B[i];
         }
     }
     // if ( MSB1(R) = 0)
     else {
-        for (unsigned int i = 0; i < sizeof(K1.data); i++) {
-            K1.data[i] = R.data[i];
+        for (unsigned int i = 0; i < sizeof(K1); i++) {
+            K1[i] = R[i];
         }
     }
 
-    for (unsigned int i = 0; i < sizeof(P.data); i++) {
-        K1.data[i] ^= P.data[i];
+    for (unsigned int i = 0; i < sizeof(P); i++) {
+        K1[i] ^= P[i];
     }
 
-    memset(t.data, sizeof(t.data), 0);
+    uint8_t tmp[KEYSIZE_BYTE];
 
-    uint128_256_t tmp;
+    aesECB(Km, K1, tmp);
 
-    tmp = aesECB(Km, K1);
+    for (int i = 0; i < 3; i++)
+        dataOut[i] = tmp[i];
 
-    for (int i = 0; i < sizeof(ret.data); i++)
-        ret.data[i] = tmp.data[sizeof(tmp.data) - sizeof(ret.data) + i];
+#elif defined(KUZNECHIK)
+    ret = kzchMgmCMAC(Km, P.data, 128 / 8);
+#elif defined(MAGMA)
+    ret = kzchMgmCMAC(Km, P.data, 64 / 8);
+#endif
 
-    return ret;
-}
-
-uint24a_t getMIC48(uint128_256_t Km, uint24a_t DevAddr, uint48a_t cryptoMacPayload, uint16_t Nn) {
-    uint24a_t ret = { 0 };
-
-    uint128a_t P;
-
-    // 00..00
-    memset(P.data, 0, sizeof(P.data));
-    // DevAddr || 00..00
-    memcpy(P.data + sizeof(P.data) - sizeof(DevAddr.data), DevAddr.data, sizeof(DevAddr.data));
-    // DevAddr || cryptoMacPayload || 00..00
-    memcpy(P.data + sizeof(P.data) - sizeof(DevAddr.data) - sizeof(cryptoMacPayload.data), cryptoMacPayload.data, sizeof(cryptoMacPayload).data);
-    // DevAddr || cryptoMacPayload || Nn || 00..00
-    memcpy(P.data + sizeof(P.data) - sizeof(DevAddr.data) - sizeof(cryptoMacPayload.data) - sizeof(Nn), &Nn, sizeof(Nn));
-    // DevAddr || cryptoMacPayload || Nn || 00..00 || 0x10
-    P.data[0] = 0x30;
-
-
-    uint128_256_t R;
-    uint128_256_t K1;
-    uint128_256_t t = {0};
-
-    R = aesECB(Km, t);
-
-    uint8_t msb = (R.data[sizeof(R.data) - 1] >> 7) & 1;
-
-    // R << 1
-    for (int i = sizeof(R.data) - 1; i >= 0; i--) {
-        R.data[i] = R.data[i] << 1;
-        if (i != 0)
-            R.data[i] |= (R.data[i - 1] >> 7) & 1;
-    }
-
-    // if ( MSB1(R) = 1)
-    if (msb) {
-        uint128_256_t B = {0};
-        B.data[0] = 0b10000111;
-
-        for (unsigned int i = 0; i < sizeof(K1.data); i++) {
-            K1.data[i] = R.data[i] ^ B.data[i];
-        }
-    }
-    // if ( MSB1(R) = 0)
-    else {
-        for (unsigned int i = 0; i < sizeof(K1.data); i++) {
-            K1.data[i] = R.data[i];
-        }
-    }
-
-    for (unsigned int i = 0; i < sizeof(P.data); i++) {
-        K1.data[i] ^= P.data[i];
-    }
-
-    memset(t.data, sizeof(t.data), 0); //t = {0};
-    uint128_256_t tmp;
-
-    tmp = aesECB(Km, K1);
-
-    for (int i = 0; i < sizeof(ret.data); i++)
-        ret.data[i] = tmp.data[sizeof(tmp.data) - sizeof(ret.data) + i];
-
-
-    return ret;
+    return 0;
 }
 
 
-uint128_256_t aes128Enc(uint128_256_t key, uint128_256_t data) {
-    struct AES_ctx _key;
-    //AES_KEY _key;
-    uint128_256_t ret;
-    memcpy(ret.data, data.data, sizeof(data.data));
-    uint128_256_t iv = {0};
-
-    AES_init_ctx_iv(&_key, key.data, iv.data);
-    AES_CTR_xcrypt_buffer(&_key, ret.data, sizeof(ret.data));
-    return ret;
-
-}
-
-uint128_256_t aesCTR(uint128_256_t key, iv_t iv, uint128_256_t data) {
-    return aesCTR_a(key, iv, data.data, sizeof (data.data));
-}
-
-uint128_256_t aesCTR_a(uint128_256_t key, iv_t iv, uint8_t* data, size_t size) {
-    struct AES_ctx _key;
-    uint128_256_t ret;
-    memcpy(ret.data, data, size);
-    AES_init_ctx_iv(&_key, key.data, (uint8_t*)&iv);
-    AES_CTR_xcrypt_buffer(&_key, ret.data, size);
-
-    return ret;
-}
-
-uint128_256_t aesECB(uint128_256_t key, uint128_256_t data) {
+#if defined(AES128) | defined(AES256)
+void aes128Enc(uint8_t* key, uint8_t* data, uint8_t* ret) {
 
     struct AES_ctx _key;
+    memcpy_endian(ret, data, KEYSIZE_BYTE);
+    uint8_t iv[KEYSIZE_BYTE] = {0};
+
+    AES_init_ctx_iv(&_key, key, iv);
+    AES_CTR_xcrypt_buffer(&_key, ret, KEYSIZE_BYTE);
+}
+
+void aesCTR(uint8_t* key, uint8_t* iv, uint8_t* data, size_t size, uint8_t* ret) {
+    struct AES_ctx _key;
+    memcpy(ret, data, size);
+    AES_init_ctx_iv(&_key, key, iv);
+    AES_CTR_xcrypt_buffer(&_key, ret, size);
+}
+
+void aesECB(uint8_t* key, uint8_t* data, uint8_t* ret) {
+    struct AES_ctx _key;
+    memcpy(ret, data, KEYSIZE_BYTE);
+
+    AES_init_ctx(&_key, key);
+
+    AES_ECB_encrypt(&_key, ret);
+}
+
+//uint24a_t aesCMAC(uint128_256_t key, uint8_t* data, size_t size) {
+//    // TODO
+//    //return {0};
+//}
+#endif
+
+#if defined(KUZNECHIK) | defined(MAGMA)
+uint128_256_t kzchMgmCTR(uint128_256_t key, iv_t iv, uint128_256_t data) {
+    return kzchMgmCTR(key, iv, data.data, sizeof (data.data));
+}
+
+uint128_256_t kzchMgmCTR(uint128_256_t key, iv_t iv, uint8_t* data, size_t size) {
+
+    struct bckey bkey;
+    int error;
     uint128_256_t ret;
-    memcpy(ret.data, data.data, sizeof(ret.data));
-    AES_init_ctx(&_key, key.data);
-    AES_ECB_encrypt(&_key, ret.data);
 
+#ifdef KUZNECHIK
+    if(( error = ak_bckey_create_kuznechik( &bkey )) != ak_error_ok ) {
+#else
+    if(( error = ak_bckey_create_magma( &bkey )) != ak_error_ok ) {
+#endif
+        ak_error_message( error, __func__, "incorrect initialization of kuznechik secret key context");
+        return {0};
+    }
+    if(( error = ak_bckey_set_key( &bkey, key.data, sizeof( key.data))) != ak_error_ok ) {
+        ak_error_message( error, __func__, "wrong creation of test key" );
+        return {0};
+      }
 
+    ak_bckey_ctr(&bkey, data, ret.data, size, &iv, sizeof(iv));
     return ret;
 }
 
-uint24a_t aesCMAC(uint128_256_t key, uint8_t* data, size_t size) {
-	uint24a_t ret;
-	ret.ud = 0;
+uint128_256_t kzchMgmECB(uint128_256_t key, uint128_256_t data) {
+    struct bckey bkey;
+    int error;
+    uint128_256_t ret;
+
+#ifdef KUZNECHIK
+    if(( error = ak_bckey_create_kuznechik( &bkey )) != ak_error_ok ) {
+#else
+    if(( error = ak_bckey_create_magma( &bkey )) != ak_error_ok ) {
+#endif
+        ak_error_message( error, __func__, "incorrect initialization of kuznechik secret key context");
+        return {0};
+    }
+    if(( error = ak_bckey_set_key( &bkey, key.data, sizeof( key.data))) != ak_error_ok ) {
+        ak_error_message( error, __func__, "wrong creation of test key" );
+        return {0};
+      }
+
+    ak_bckey_encrypt_ecb(&bkey, data.data, ret.data, sizeof(ret.data));
     return ret;
 }
 
+uint24a_t kzchMgmCMAC(uint128_256_t key, uint8_t* data, size_t size) {
+    struct bckey bkey;
+    int error;
+    uint24a_t ret;
 
+#ifdef KUZNECHIK
+    if(( error = ak_bckey_create_kuznechik( &bkey )) != ak_error_ok ) {
+#else
+    if(( error = ak_bckey_create_magma( &bkey )) != ak_error_ok ) {
+#endif
+        ak_error_message( error, __func__, "incorrect initialization of kuznechik secret key context");
+        return {0};
+    }
+    if(( error = ak_bckey_set_key( &bkey, key.data, sizeof( key.data))) != ak_error_ok ) {
+        ak_error_message( error, __func__, "wrong creation of test key" );
+        return {0};
+      }
 
-uint128_256_t encECB(uint128_256_t key, uint128_256_t data) {
-    uint128_256_t ret;
-
-    ret = aesECB(key, data);//aes128Enc(Ka, tmp);
-
+    ak_bckey_cmac(&bkey, data, size, ret.data, sizeof(ret));
     return ret;
 }
+#endif
 
-uint128_256_t encCTR(uint128_256_t key, iv_t iv, uint128_256_t data) {
-    uint128_256_t ret;
+void encECB(uint8_t* key, uint8_t* data, uint8_t* ret) {
 
-    ret = aesCTR(key, iv, data);
+#if defined(AES128)
+    aesECB(key, data, ret);//aes128Enc(Ka, tmp);
+#endif
 
+#if defined(KUZNECHIK) | defined(MAGMA)
+    ret = kzchMgmECB(key, data);
+#endif
+}
 
-    return ret;
+void encCTR(uint8_t* key, uint8_t* iv, uint8_t* data, size_t size, uint8_t* ret) {
+#if defined(AES128)
+    aesCTR(key, iv, data, size, ret);
+#endif
+#if defined(KUZNECHIK) | defined(MAGMA)
+    ret = kzchMgmCTR(key, iv, data);
+#endif
 }
