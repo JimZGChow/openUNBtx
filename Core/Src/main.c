@@ -200,9 +200,8 @@ int main(void) {
 	if (FLASH_Read(FLASH_CONST_ADDR) != 0xFFFF) {
 		FLASH_Read_Data(&initData);
 	} else {
-		initData.DevID_len = rand() % 8 + 2;
 
-		for (int i = 0; i < initData.DevID_len; i++) {
+		for (int i = 0; i < 16; i++) {
 			initData.DevID[i] = rand() & 0xFF;
 		}
 
@@ -237,7 +236,7 @@ int main(void) {
 	USART_TX_h_VAL("Na: ", initData.Na);
 
 	USART_TX_Str("DevID: ");
-	for (int i = 0; i < initData.DevID_len; i++) {
+	for (int i = 0; i < 16; i++) {
 		USART_TX_h_VAL_without_text(initData.DevID[i]);
 	}
 	USART_TX_Str("\n\r");
@@ -297,7 +296,8 @@ int main(void) {
 			} else {
 				error_flag = 1;
 			}
-		} else if ((u2_rx_buff[0] == 'T') && (u2_rx_buff[1] == 'R')) {
+
+		} /*else if ((u2_rx_buff[0] == 'T') && (u2_rx_buff[1] == 'R')) {
 			RX_Data_Size = Ascii2ToHex(u2_rx_buff, RX_STR_Size, 3);
 			if (error_flag == 0)
 				error_flag = (AX5243_transmit(tx_buff, RX_Data_Size));
@@ -337,7 +337,7 @@ int main(void) {
 		 error_flag = 1;
 		 }
 		 }
-		 */
+
 
 		else if ((u2_rx_buff[0] == 'S') && (u2_rx_buff[1] == 'R')) {    // SR0D
 			if (RX_STR_Size == 4) {
@@ -349,7 +349,7 @@ int main(void) {
 			} else {
 				error_flag = 1;
 			}
-		}
+		}*/
 
 		else if ((u2_rx_buff[0] == 'S') && (u2_rx_buff[1] == 'W')) {   // SW0D11
 			if (RX_STR_Size == 6) {
@@ -489,10 +489,9 @@ int main(void) {
 			}
 
 		} else if ((u2_rx_buff[0] == 'D') && (u2_rx_buff[1] == 'A')) {
-			if (RX_STR_Size > 2 && RX_STR_Size % 2 == 0) {
-				initData.DevID_len = (RX_STR_Size - 2) / 2;
+			if (RX_STR_Size > 2 && RX_STR_Size == 32) {
 
-				for (int i = 0; i < initData.DevID_len; i++) {
+				for (int i = 0; i < 16; i++) {
 					initData.DevID[i] = AsciiToHex(u2_rx_buff[2 + i * 2],
 							u2_rx_buff[2 + i * 2 + 1]);
 				}
