@@ -1,8 +1,8 @@
-OpenUNBEncoderLL.c:18:6:init_polar	0	static
-OpenUNBEncoderLL.c:22:6:byties_to_bits	20	static
-OpenUNBEncoderLL.c:34:6:bits_to_byties	24	static
-OpenUNBEncoderLL.c:107:6:solve_recursively	184	static
-OpenUNBEncoderLL.c:78:6:stdpolar_encode_systematic_noperm	816	static
-OpenUNBEncoderLL.c:149:6:add_crc	16	static
+OpenUNBEncoderLL.c:18:6:init_polar	8	static
+OpenUNBEncoderLL.c:22:6:byties_to_bits	40	static
+OpenUNBEncoderLL.c:34:6:bits_to_byties	40	static
 OpenUNBEncoderLL.c:46:6:encode96	464	static
 OpenUNBEncoderLL.c:64:6:encode64	240	static
+OpenUNBEncoderLL.c:80:6:stdpolar_encode_systematic_noperm	832	static
+OpenUNBEncoderLL.c:109:6:solve_recursively	208	static
+OpenUNBEncoderLL.c:151:6:add_crc	40	static

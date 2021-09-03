@@ -21,7 +21,7 @@
 #endif
 
 struct encrypt_data_t {
-    uint8_t* DevID;
+    uint8_t DevID[64];
     uint8_t DevID_len;
     uint8_t K0[KEYSIZE_BYTE];
     uint16_t Na;

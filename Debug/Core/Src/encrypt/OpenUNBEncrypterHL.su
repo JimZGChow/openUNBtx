@@ -1,0 +1,6 @@
+OpenUNBEncrypterHL.c:3:10:htonl	16	static
+OpenUNBEncrypterHL.c:7:10:htons	16	static
+OpenUNBEncrypterHL.c:11:10:htonll	16	static
+OpenUNBEncrypterHL.c:15:6:initEncrypter	24	static
+OpenUNBEncrypterHL.c:23:6:encodeActivateMsg	72	static
+OpenUNBEncrypterHL.c:59:5:encodeData	72	static

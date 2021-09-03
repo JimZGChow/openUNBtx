@@ -1,7 +1,7 @@
 Core/Src/stm32f0xx_it.o: ../Core/Src/stm32f0xx_it.c ../Core/Inc/main.h \
  ../Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_ll_crs.h \
  ../Drivers/CMSIS/Device/ST/STM32F0xx/Include/stm32f0xx.h \
- ../Drivers/CMSIS/Device/ST/STM32F0xx/Include/stm32f030x6.h \
+ ../Drivers/CMSIS/Device/ST/STM32F0xx/Include/stm32f042x6.h \
  ../Drivers/CMSIS/Include/core_cm0.h \
  ../Drivers/CMSIS/Include/cmsis_version.h \
  ../Drivers/CMSIS/Include/cmsis_compiler.h \
@@ -26,7 +26,7 @@ Core/Src/stm32f0xx_it.o: ../Core/Src/stm32f0xx_it.c ../Core/Inc/main.h \
 
 ../Drivers/CMSIS/Device/ST/STM32F0xx/Include/stm32f0xx.h:
 
-../Drivers/CMSIS/Device/ST/STM32F0xx/Include/stm32f030x6.h:
+../Drivers/CMSIS/Device/ST/STM32F0xx/Include/stm32f042x6.h:
 
 ../Drivers/CMSIS/Include/core_cm0.h:
 

@@ -149,6 +149,7 @@ void AX5243_init() {
 }
 
 uint8_t AX5243_transmit(uint8_t* data, uint16_t RX_Data_Size) {
+	AX5243_set_fr(868000000 - 125000 / 2 + rand() % 125000);
 	uint32_t transmit_timer = 0;
 	uint8_t error_flag = 0;
 

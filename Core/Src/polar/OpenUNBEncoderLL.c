@@ -20,13 +20,13 @@ void init_polar() {
 }
 
 void byties_to_bits(uint8_t* in, int size, uint8_t* out) {
-	uint16_t i=0;
+	uint16_t c = 0;
 
-	for (; i < size; i++) {
-		uint8_t bit = 0;
-
-		for (; bit < 8; bit++) {
-			out[i * 8 + bit] = (in[i] >> bit) & 1;
+	for (int16_t i=size - 1; i >= 0; i--) {
+	//for (int16_t i=0 ; i < size; i++) {
+		for (int8_t bit = 7; bit >= 0; bit--) {
+		//for (int8_t bit = 0; bit < 8; bit++) {
+			out[c++] = (in[i] >> bit) & 1;
 		}
 	}
 }
@@ -60,7 +60,7 @@ void encode96(uint8_t* in, uint8_t* out) {
 
 #endif
 
-#ifdef USE64
+//#ifdef USE64
 void encode64(uint8_t* in, uint8_t* out) {
 	uint8_t data_bits[64 + 10];
 	uint8_t out_bits[128];
@@ -71,9 +71,11 @@ void encode64(uint8_t* in, uint8_t* out) {
 	stdpolar_encode_systematic_noperm(data_bits, 74, frozen_indicator_64, sizeof(frozen_indicator_64), out_bits);
 
 	bits_to_byties(out_bits, 128, out);
+	int a = 0;
+	a++;
 }
 
-#endif
+//#endif
 
 void stdpolar_encode_systematic_noperm(uint8_t* _iwd, uint16_t _iwd_size, const uint8_t* _frozen_indicator, uint16_t _frozen_indicator_size, uint8_t* ret) {
 

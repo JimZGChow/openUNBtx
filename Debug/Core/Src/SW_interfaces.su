@@ -1,7 +1,7 @@
-SW_interfaces.c:13:6:cdelay	0	static
-SW_interfaces.c:18:6:I2C_Start	20	static
-SW_interfaces.c:39:6:I2C_Stop	0	static
-SW_interfaces.c:49:9:I2C_Write_Byte	20	static
+SW_interfaces.c:13:6:cdelay	16	static
+SW_interfaces.c:18:6:I2C_Start	16	static
+SW_interfaces.c:39:6:I2C_Stop	8	static
+SW_interfaces.c:49:9:I2C_Write_Byte	24	static
 SW_interfaces.c:78:9:I2C_Read_Byte	24	static
-SW_interfaces.c:105:6:SPI2_Write_Byte	24	static
+SW_interfaces.c:105:6:SPI2_Write_Byte	32	static
 SW_interfaces.c:133:9:SPI2_Read_Byte	32	static
